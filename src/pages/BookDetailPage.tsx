@@ -100,6 +100,7 @@ export default function BookDetailPage() {
           subtitle={vol ? `Vol. ${vol}` : null}
           category={category}
           synopsis={book.synopsis}
+          showcase={book.edition_type !== 'regular'}
           meta={[book.series?.title !== book.title ? book.series?.title : null, vol ? `Vol. ${vol}` : null, publisher?.name].filter(Boolean).join(' · ') || null}
         />
       }

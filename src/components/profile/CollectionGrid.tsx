@@ -178,7 +178,8 @@ function CollectionItemCard({ entry: e }: { entry: CollectionEntry }) {
             title={e.title}
             subtitle={vol ? `Vol. ${vol}` : null}
             category={e.category}
-            aspect={e.item_kind === 'merchandise' ? 'aspect-square' : 'aspect-[2/3]'}
+            aspect={e.item_kind === 'merchandise' || e.category === 'special_edition' ? 'aspect-square' : 'aspect-[2/3]'}
+            fit={e.item_kind === 'merchandise' || e.category === 'special_edition' ? 'contain' : 'cover'}
             className="group-hover:shadow-lift"
           />
           {vol && (

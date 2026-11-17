@@ -17,6 +17,7 @@ export const CoverImage = memo(function CoverImage({
   eager,
   sizes = '(min-width: 1024px) 160px, (min-width: 640px) 148px, 122px',
   aspect = 'aspect-[2/3]',
+  fit = 'cover',
 }: {
   src: string | null | undefined
   title: string
@@ -27,13 +28,32 @@ export const CoverImage = memo(function CoverImage({
   eager?: boolean
   sizes?: string
   aspect?: string
+  /**
+   * "cover" fills the frame (books). "contain" shows the whole picture over a blurred copy
+   * of itself — for special sets and merchandise photos that are not book-shaped.
+   */
+  fit?: 'cover' | 'contain'
 }) {
   const [failed, setFailed] = useState(false)
   const [loaded, setLoaded] = useState(false)
   const showImage = !!src && !failed
+  const contain = fit === 'contain'
 
   return (
     <div className={cn('@container relative overflow-hidden bg-surface-2 shadow-card', aspect, rounded, className)}>
+      {showImage && contain && (
+        <img
+          src={src!}
+          alt=""
+          aria-hidden
+          loading={eager ? 'eager' : 'lazy'}
+          decoding="async"
+          className={cn(
+            'absolute inset-0 h-full w-full scale-110 object-cover blur-xl transition-opacity duration-500',
+            loaded ? 'opacity-50' : 'opacity-0',
+          )}
+        />
+      )}
       {showImage ? (
         <img
           src={src!}
@@ -46,7 +66,8 @@ export const CoverImage = memo(function CoverImage({
           onLoad={() => setLoaded(true)}
           onError={() => setFailed(true)}
           className={cn(
-            'absolute inset-0 h-full w-full object-cover transition-opacity duration-500',
+            'absolute inset-0 h-full w-full transition-opacity duration-500',
+            contain ? 'object-contain' : 'object-cover',
             loaded ? 'opacity-100' : 'opacity-0',
           )}
         />
@@ -55,10 +76,12 @@ export const CoverImage = memo(function CoverImage({
       )}
       {showImage && !loaded && <div className="skeleton absolute inset-0" aria-hidden />}
       {/* subtle spine shading so every cover reads as a physical book */}
-      <div
-        aria-hidden
-        className="pointer-events-none absolute inset-y-0 left-0 w-[7%] bg-gradient-to-r from-black/20 via-black/5 to-transparent"
-      />
+      {!contain && (
+        <div
+          aria-hidden
+          className="pointer-events-none absolute inset-y-0 left-0 w-[7%] bg-gradient-to-r from-black/20 via-black/5 to-transparent"
+        />
+      )}
     </div>
   )
 })

@@ -62,6 +62,7 @@ export default function MerchDetailPage() {
           subtitle={MERCH_LABEL[item.merch_type]}
           category="merchandise"
           aspect="aspect-square"
+          fit="contain"
           eager
           rounded="rounded-xl"
           sizes="(min-width: 1024px) 320px, 260px"

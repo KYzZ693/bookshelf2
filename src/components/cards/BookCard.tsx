@@ -47,6 +47,8 @@ export const BookCard = memo(function BookCard({
   const vol = formatVolume(item.volume_number)
   const typeLabel = item.kind === 'merchandise' ? MERCH_LABEL[item.merch_type ?? 'other'] : CATEGORY_LABEL[item.category]
   const price = formatPrice(item.price, item.currency ?? 'THB')
+  // Special sets and merchandise are product photos (usually square): show them whole.
+  const showcase = item.kind === 'merchandise' || item.category === 'special_edition' || !!item.edition_label
 
   const act = (target: CollectionStatus) => (e: MouseEvent) => {
     e.preventDefault()
@@ -63,7 +65,8 @@ export const BookCard = memo(function BookCard({
           subtitle={vol ? `Vol. ${vol}` : typeLabel}
           category={item.category}
           eager={eager}
-          aspect={item.kind === 'merchandise' ? 'aspect-square' : 'aspect-[2/3]'}
+          aspect={showcase ? 'aspect-square' : 'aspect-[2/3]'}
+          fit={showcase ? 'contain' : 'cover'}
           className="transition-shadow duration-300 group-hover:shadow-lift"
         />
         {vol && item.kind === 'book' && (

@@ -82,6 +82,7 @@ export default function SeriesDetailPage() {
           items={specials.map(bookToCard)}
           empty="No special, limited or exclusive editions for this series yet."
           subtitle="Limited, exclusive and special releases"
+          wide
         />
         <ItemSection
           id="merchandise"
@@ -92,6 +93,7 @@ export default function SeriesDetailPage() {
           items={(merch.data ?? []).map(merchToCard)}
           empty="No official merchandise listed for this series yet."
           subtitle="Acrylic stands, posters, keychains, figures and more"
+          wide
         />
       </div>
     </div>
@@ -270,7 +272,10 @@ function ItemSection({
   error,
   items,
   empty,
+  wide,
 }: {
+  /** Bigger, square tiles for product photos (special sets, merchandise). */
+  wide?: boolean
   id: string
   title: string
   subtitle?: string
@@ -299,7 +304,13 @@ function ItemSection({
       ) : items.length === 0 ? (
         <EmptyState compact icon={BookOpen} title="Nothing here yet" description={empty} />
       ) : (
-        <div className="grid grid-cols-2 gap-x-3 gap-y-7 sm:grid-cols-3 sm:gap-x-4 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6">
+        <div
+          className={
+            wide
+              ? 'grid grid-cols-1 gap-x-4 gap-y-8 min-[420px]:grid-cols-2 md:grid-cols-3 md:gap-x-5 xl:grid-cols-4'
+              : 'grid grid-cols-2 gap-x-3 gap-y-7 sm:grid-cols-3 sm:gap-x-4 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6'
+          }
+        >
           {items.map((it, i) => (
             <motion.div
               key={it.id}

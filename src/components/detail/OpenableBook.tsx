@@ -41,7 +41,10 @@ export function OpenableBook({
   category,
   synopsis,
   meta,
+  showcase = false,
 }: {
+  /** Product photo (special set): the cover on the page is square and shows the whole picture. */
+  showcase?: boolean
   coverUrl: string | null | undefined
   title: string
   /** e.g. "Vol. 3" — also shown on the generated cover when there is no image. */
@@ -124,6 +127,8 @@ export function OpenableBook({
             eager
             rounded="rounded-xl rounded-l-md"
             className="shadow-book"
+            aspect={showcase ? 'aspect-square' : 'aspect-[2/3]'}
+            fit={showcase ? 'contain' : 'cover'}
             sizes="(min-width: 1024px) 320px, 260px"
           />
           <span className="pointer-events-none absolute inset-x-3 bottom-3 flex items-center justify-center gap-1.5 rounded-lg bg-black/55 px-3 py-2 text-xs font-medium text-white opacity-0 backdrop-blur-sm transition-opacity duration-200 group-hover:opacity-100 group-focus-visible:opacity-100">
@@ -155,6 +160,7 @@ export function OpenableBook({
                 category={category}
                 synopsis={synopsis}
                 meta={meta}
+                showcase={showcase}
                 reduce={!!reduce}
                 onClose={closeBook}
                 onLeft={finish}
@@ -177,10 +183,12 @@ function ReaderOverlay({
   category,
   synopsis,
   meta,
+  showcase,
   reduce,
   onClose,
   onLeft,
 }: {
+  showcase: boolean
   phase: Phase
   from: Rect
   coverUrl: string | null | undefined
@@ -353,6 +361,7 @@ function ReaderOverlay({
                 rounded="rounded-md rounded-l-sm"
                 className="h-full shadow-book"
                 aspect=""
+                fit={showcase ? 'contain' : 'cover'}
                 sizes="440px"
               />
             </div>
