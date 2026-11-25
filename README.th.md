@@ -32,9 +32,9 @@ npm run dev                 # http://localhost:5173
 | `npm run dev` | เปิด dev server |
 | `npm run build` | ตรวจ TypeScript + build สำหรับ production ลงใน `dist/` (สร้าง `dist/404.html` สำหรับ SPA routing ด้วย) |
 | `npm run typecheck` | ตรวจ TypeScript อย่างเดียว |
-| `npm run test:db` | รัน migration ทั้งหมด + seed บน PGlite (PostgreSQL จริงที่คอมไพล์เป็น WASM) แล้วตรวจ RLS, การค้นหา, คอลเลกชัน, ฟังก์ชันแอดมิน ตัวนำเข้าข้อมูล และ constraint (175 รายการ) |
+| `npm run test:db` | รัน migration ทั้งหมด + seed บน PGlite (PostgreSQL จริงที่คอมไพล์เป็น WASM) แล้วตรวจ RLS, การค้นหา, คอลเลกชัน, ฟังก์ชันแอดมิน ตัวนำเข้าข้อมูล และ constraint (177 รายการ) |
 | `npm run reconstruct:merch` | สร้างตัวอย่าง 3D จำลองของสินค้า (ดู [ตัวอย่างโมเดล 3D ของสินค้า](#ตัวอย่างโมเดล-3d-ของสินค้า)) |
-| `npm run import:phoenixnext` | นำเข้าแคตตาล็อกจาก Phoenix Next (ดู [นำเข้าข้อมูลจาก Phoenix Next](#นำเข้าข้อมูลจาก-phoenix-next)) |
+| `npm run import` | นำเข้าทุกสำนักพิมพ์ (ใช้ `import:phoenixnext` หรือ `import:luckpim` ถ้าต้องการเจ้าเดียว) ดู [นำเข้าข้อมูลจากสำนักพิมพ์](#นำเข้าข้อมูลจากสำนักพิมพ์) |
 
 ### Environment variables
 
@@ -61,7 +61,7 @@ npm run dev                 # http://localhost:5173
 | `…0400_views_and_functions.sql` | `series_overview`, `my_collection`, `search_catalog()`, `get_genre_shelves()`, `set_collection_status()`, `toggle_collection_status()`, `get_collection_stats()`, `admin_save_series()`, `admin_save_book()`, `admin_ensure_person()` |
 | `…0500_storage.sql` | bucket `covers` และ `avatars` พร้อม policy |
 | `…0600_reference_data.sql` | สำนักพิมพ์เริ่มต้น (Phoenix Next, Luckpim, Animag, …) และแนวหนังสือ |
-| `20261125000100_merch_types.sql`, `…000200_special_editions_and_merch_preview.sql` | ประเภทสินค้าใหม่, `regular_book_id` / `bonus_items` ในตาราง books, ฟิลด์ตัวอย่าง 3D ในตาราง merchandise, bucket `models`, ซ่อนซีรีส์ที่มีแต่สินค้าออกจากชั้นหน้าแรก |
+| `20261125000100_merch_types.sql`, `…000200_special_editions_and_merch_preview.sql`, `…000300_import_extras_dates.sql` | ประเภทสินค้าใหม่, วันวางขายและของแถมจากตัวนำเข้า, `regular_book_id` / `bonus_items` ในตาราง books, ฟิลด์ตัวอย่าง 3D ในตาราง merchandise, bucket `models`, ซ่อนซีรีส์ที่มีแต่สินค้าออกจากชั้นหน้าแรก |
 | `…0700_import_and_series_covers.sql` | คีย์ `source_ref` สำหรับนำเข้าข้อมูล, ปกซีรีส์อัตโนมัติ (จากเล่มปกติเล่มแรก), ฟังก์ชัน `import_catalog()` (เรียกได้เฉพาะ service_role) |
 | `supabase/seed.sql` | *ไม่บังคับ* แคตตาล็อกตัวอย่าง: ซีรีส์ **สมมติ** 8 เรื่อง พร้อมเล่มปกติ ฉบับพิเศษ และสินค้า |
 
@@ -98,9 +98,20 @@ select id, 'admin' from auth.users where email = 'you@example.com';
 
 ---
 
-### นำเข้าข้อมูลจาก Phoenix Next
+### นำเข้าข้อมูลจากสำนักพิมพ์
 
-`scripts/import-phoenixnext.mjs` อ่านข้อมูลจาก GraphQL API สาธารณะของ Phoenix Next (เว็บร้านสร้างด้วย Magento) โดยไม่ scrape หน้าเว็บ ใช้ประมาณ 45 request ก็ได้แคตตาล็อกครบ ราว 4,500 รายการ
+`scripts/import.mjs` เรียกตัวดึงข้อมูล (**adapter**) ของแต่ละสำนักพิมพ์ใน `scripts/import/<ชื่อ>.mjs` ทุกตัวใช้ส่วนกลางร่วมกันคือ `scripts/import/core.mjs` ซึ่งดูแลการเชื่อมฐานข้อมูล การส่งข้อมูลทีละชุด ไฟล์ preview รวมถึงของแถมและวันวางขาย ทุก adapter ส่งข้อมูลรูปแบบเดียวกัน (ซีรีส์ → เล่ม / ฉบับพิเศษ / สินค้า) ให้ `import_catalog()`
+
+| สำนักพิมพ์ | แหล่งข้อมูล | ความเร็ว |
+| --- | --- | --- |
+| Phoenix Next | GraphQL API สาธารณะของ Magento | ใช้ราว 45 request ได้ครบทั้งแคตตาล็อก |
+| Luckpim | sitemap สินค้า + หน้าสินค้า (ไม่มี API สาธารณะ) | อ่านวินาทีละ 1 หน้า รอบแรกอ่านราว 2,500 หน้า (≈45 นาที) รอบรายสัปดาห์อ่านเฉพาะสินค้าใหม่ และหมุนเวียนอัปเดตสินค้าเดิมสัปดาห์ละ 1 ใน 12 |
+
+วิธีเพิ่มสำนักพิมพ์ใหม่: สร้างไฟล์ `scripts/import/<ชื่อ>.mjs` ที่ export `key`, `publisher` และ `collect(options)` ลงทะเบียนใน `scripts/import.mjs` แล้วลองรันแบบ dry-run และตรวจไฟล์ `scripts/.cache/<ชื่อ>-preview.json`
+
+#### Phoenix Next
+
+adapter ของ Phoenix Next อ่านข้อมูลจาก GraphQL API สาธารณะของ Phoenix Next (เว็บร้านสร้างด้วย Magento) โดยไม่ scrape หน้าเว็บ ใช้ประมาณ 45 request ก็ได้แคตตาล็อกครบ ราว 4,500 รายการ
 
 ข้อมูลที่ได้จากแต่ละสินค้า:
 
@@ -324,5 +335,8 @@ supabase/
   seed.sql        แคตตาล็อกตัวอย่าง (ไม่บังคับ)
   tests/run.mjs   ชุดทดสอบฐานข้อมูล (npm run test:db)
 scripts/
-  import-phoenixnext.mjs   ตัวนำเข้าแคตตาล็อก Phoenix Next (npm run import:phoenixnext)
+  import.mjs               ตัวนำเข้าข้อมูลสำนักพิมพ์ (npm run import)
+  import/core.mjs          โค้ดส่วนกลางของการนำเข้า
+  import/phoenixnext.mjs   adapter ของ Phoenix Next
+  import/luckpim.mjs       adapter ของ Luckpim
 ```

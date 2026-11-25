@@ -9,8 +9,10 @@
     "typecheck": "tsc -b --noEmit",
     "preview": "vite preview",
     "test:db": "node supabase/tests/run.mjs",
-    "import:phoenixnext": "node scripts/import-phoenixnext.mjs",
-    "reconstruct:merch": "node scripts/reconstruct-merch.mjs"
+    "import:phoenixnext": "node scripts/import.mjs --publisher=phoenixnext",
+    "reconstruct:merch": "node scripts/reconstruct-merch.mjs",
+    "import": "node scripts/import.mjs",
+    "import:luckpim": "node scripts/import.mjs --publisher=luckpim"
   },
   "dependencies": {
     "@react-three/drei": "^10.7.9",

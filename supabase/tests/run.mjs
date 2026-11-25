@@ -477,6 +477,13 @@ async function main() {
     check('service_role sets bonus items by ref', r.ok && r.rows[0].n === 1, r.rows ?? r.message);
     await reset();
     check('bonus items stored', (await one(`select bonus_items from public.books where id = $1`, [sp1.id])).bonus_items.join('|') === 'Booklet|Shikishi');
+    await asRole('service_role', null);
+    r = await err(`select public.import_book_extras('[{"ref":"test:sp1","publication_date":"2026-11-25"}]'::jsonb) n`);
+    check('extras fill an empty release date (bonus items untouched)', r.ok && r.rows[0].n === 1, r.rows ?? r.message);
+    await q(`select public.import_book_extras('[{"ref":"test:sp1","publication_date":"2020-01-01"}]'::jsonb)`);
+    await reset();
+    const ex = await one(`select publication_date::text d, bonus_items from public.books where id = $1`, [sp1.id]);
+    check('existing release date is kept', ex.d === '2026-11-25' && ex.bonus_items.join('|') === 'Booklet|Shikishi', ex);
 
     // merchandise preview metadata
     const ms = (await one(`insert into public.merchandise (series_id, title, merch_type, product_url) values ($1, 'LT Can Badge', 'character_goods', 'https://shop.example/badge') returning id, reconstruction_status, preview_available, reference_urls`, [sid]));

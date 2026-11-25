@@ -1,6 +1,6 @@
 import { useEffect, useId, useState } from 'react'
 import { keepPreviousData, useQuery } from '@tanstack/react-query'
-import { BookOpen, Plus, Sparkles } from 'lucide-react'
+import { BookOpen, FileQuestion, Plus, Sparkles } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import { formatDate, formatPrice, formatVolume } from '@/lib/utils'
 import { EDITION_LABEL, FORMAT_LABEL, bookCategory } from '@/lib/labels'
@@ -49,30 +49,33 @@ interface BookRow {
   price: number | null
   currency: string
   publication_date: string | null
+  has_synopsis: boolean
   series: { id: string; title: string } | null
 }
 
 type EditionFilter = 'all' | 'regular' | 'special'
+type SynopsisFilter = 'all' | 'missing' | 'present'
 type EditTarget = { id: string } | { preset: 'regular' | 'special'; seriesId: string | null }
 
 export function BooksAdmin() {
   const { search, setSearch, debounced } = useDebouncedSearch()
   const [seriesId, setSeriesId] = useState<string | null>(null)
   const [edition, setEdition] = useState<EditionFilter>('all')
+  const [synopsis, setSynopsis] = useState<SynopsisFilter>('all')
   const [page, setPage] = useState(0)
   const [editing, setEditing] = useState<EditTarget | null>(null)
   const [deleting, setDeleting] = useState<BookRow | null>(null)
   const seriesOptions = useSeriesOptions()
 
-  useEffect(() => setPage(0), [debounced, seriesId, edition])
+  useEffect(() => setPage(0), [debounced, seriesId, edition, synopsis])
 
   const list = useQuery({
-    queryKey: ['admin', 'books', debounced, seriesId, edition, page],
+    queryKey: ['admin', 'books', debounced, seriesId, edition, synopsis, page],
     placeholderData: keepPreviousData,
     queryFn: async () => {
       let q = supabase
         .from('books')
-        .select('id, title, volume_number, item_type, edition_type, cover_url, price, currency, publication_date, series:series(id, title)', {
+        .select('id, title, volume_number, item_type, edition_type, cover_url, price, currency, publication_date, synopsis, series:series(id, title)', {
           count: 'exact',
         })
       if (seriesId) q = q.eq('series_id', seriesId)
@@ -80,12 +83,18 @@ export function BooksAdmin() {
       if (term) q = q.ilike('title', `%${term}%`)
       if (edition === 'regular') q = q.eq('edition_type', 'regular')
       if (edition === 'special') q = q.neq('edition_type', 'regular')
-      q = seriesId
+      if (synopsis === 'missing') q = q.is('synopsis', null)
+      if (synopsis === 'present') q = q.not('synopsis', 'is', null)
+      // Missing synopses: walk through series volume by volume.
+      q = seriesId || synopsis === 'missing'
         ? q.order('edition_type').order('volume_number', { ascending: true, nullsFirst: false }).order('title')
         : q.order('created_at', { ascending: false })
       const { data, error, count } = await q.range(page * PAGE_SIZE, page * PAGE_SIZE + PAGE_SIZE - 1)
       if (error) throw error
-      return { rows: (data ?? []) as unknown as BookRow[], count: count ?? 0 }
+      const rows = ((data ?? []) as unknown as (Omit<BookRow, 'has_synopsis'> & { synopsis: string | null })[]).map(
+        ({ synopsis: text, ...b }) => ({ ...b, has_synopsis: !!text }),
+      )
+      return { rows: rows as BookRow[], count: count ?? 0 }
     },
   })
 
@@ -94,7 +103,7 @@ export function BooksAdmin() {
     onSuccess: () => setDeleting(null),
   })
 
-  const filtersActive = !!(debounced || seriesId || edition !== 'all')
+  const filtersActive = !!(debounced || seriesId || edition !== 'all' || synopsis !== 'all')
 
   return (
     <div>
@@ -133,6 +142,13 @@ export function BooksAdmin() {
             <option value="special">Special editions</option>
           </SelectField>
         </div>
+        <div className="sm:w-44">
+          <SelectField value={synopsis} onChange={(e) => setSynopsis(e.target.value as SynopsisFilter)} aria-label="Synopsis">
+            <option value="all">Any synopsis</option>
+            <option value="missing">Missing synopsis</option>
+            <option value="present">Has synopsis</option>
+          </SelectField>
+        </div>
       </ListToolbar>
 
       {list.isPending ? (
@@ -158,6 +174,12 @@ export function BooksAdmin() {
                     <CategoryBadge category={b.item_type} />
                     {b.edition_type !== 'regular' && (
                       <Badge className="bg-special-soft text-special">{EDITION_LABEL[b.edition_type]}</Badge>
+                    )}
+                    {!b.has_synopsis && (
+                      <Badge className="bg-surface-2 text-muted" title="No synopsis yet — edit to add one">
+                        <FileQuestion className="mr-1 inline size-3" />
+                        No synopsis
+                      </Badge>
                     )}
                   </>
                 }

@@ -1,5 +1,6 @@
 # Refreshes the catalog from publisher websites once a week.
-#   1. import:phoenixnext  -> new volumes / merchandise, updated prices, covers, synopses, bonus items
+#   1. import              -> every publisher adapter (Phoenix Next, Luckpim): new volumes / merchandise,
+#                             updated prices, covers, synopses, bonus items, release dates
 #   2. reconstruct:merch   -> simulated 3D previews for merchandise that has none yet
 #
 # Repository settings -> Secrets and variables -> Actions:
@@ -30,7 +31,7 @@ concurrency:
 jobs:
   import:
     runs-on: ubuntu-latest
-    timeout-minutes: 40
+    timeout-minutes: 90
     env:
       VITE_SUPABASE_URL: ${{ vars.VITE_SUPABASE_URL }}
       SUPABASE_SECRET_KEY: ${{ secrets.SUPABASE_SECRET_KEY }}
@@ -51,6 +52,9 @@ jobs:
       - name: Import Phoenix Next
         run: npm run import:phoenixnext
 
+      - name: Import Luckpim (new products + weekly rotation)
+        run: npm run import:luckpim
+
       - name: Build 3D previews for new merchandise
         if: ${{ github.event_name == 'schedule' || inputs.reconstruct }}
         run: npm run reconstruct:merch
@@ -62,6 +66,7 @@ jobs:
           name: import-review
           path: |
             scripts/.cache/phoenixnext-preview.json
+            scripts/.cache/luckpim-preview.json
             scripts/.cache/merch-reconstruction-review.json
           if-no-files-found: ignore
           retention-days: 14

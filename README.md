@@ -32,9 +32,9 @@ If the env vars are missing, the app shows a "Connect your Supabase project" scr
 | `npm run dev` | Dev server |
 | `npm run build` | Typecheck + production build into `dist/` (also writes `dist/404.html` for SPA routing) |
 | `npm run typecheck` | TypeScript only |
-| `npm run test:db` | Runs all migrations + seed on PGlite (real PostgreSQL in WASM) and checks RLS, search, collections, admin functions, the importer and constraints (175 checks) |
+| `npm run test:db` | Runs all migrations + seed on PGlite (real PostgreSQL in WASM) and checks RLS, search, collections, admin functions, the importer and constraints (177 checks) |
 | `npm run reconstruct:merch` | Builds simulated 3D previews for merchandise (see [3D merchandise previews](#3d-merchandise-previews)) |
-| `npm run import:phoenixnext` | Imports the Phoenix Next catalog (see [Importing from Phoenix Next](#importing-from-phoenix-next)) |
+| `npm run import` | Imports every publisher (`import:phoenixnext`, `import:luckpim` for one). See [Importing publisher catalogs](#importing-publisher-catalogs) |
 
 ### Environment variables
 
@@ -61,7 +61,7 @@ All structure lives in `supabase/migrations/`. Apply the files in filename order
 | `…0400_views_and_functions.sql` | `series_overview`, `my_collection`, `search_catalog()`, `get_genre_shelves()`, `set_collection_status()`, `toggle_collection_status()`, `get_collection_stats()`, `admin_save_series()`, `admin_save_book()`, `admin_ensure_person()` |
 | `…0500_storage.sql` | `covers` and `avatars` buckets with their policies |
 | `…0600_reference_data.sql` | Initial publishers (Phoenix Next, Luckpim, Animag, …) and genres |
-| `20261125000100_merch_types.sql`, `…000200_special_editions_and_merch_preview.sql` | New merchandise types; `regular_book_id` / `bonus_items` on books; 3D preview fields on merchandise; `models` bucket; merchandise-only series kept off the shelves |
+| `20261125000100_merch_types.sql`, `…000200_special_editions_and_merch_preview.sql`, `…000300_import_extras_dates.sql` | New merchandise types; release dates and bonus items from importers; `regular_book_id` / `bonus_items` on books; 3D preview fields on merchandise; `models` bucket; merchandise-only series kept off the shelves |
 | `…0700_import_and_series_covers.sql` | `source_ref` import keys, automatic series covers (first regular volume), `import_catalog()` (service_role only) |
 | `supabase/seed.sql` | *Optional* demo catalog: 8 **fictional** series with volumes, special editions and merchandise |
 
@@ -98,9 +98,20 @@ Reload the app and the **Admin** tab appears. The database enforces this on its 
 
 ---
 
-### Importing from Phoenix Next
+### Importing publisher catalogs
 
-`scripts/import-phoenixnext.mjs` reads Phoenix Next's public GraphQL API (the shop runs Magento). It does not scrape HTML: about 45 requests return the whole catalog, roughly 4,500 products.
+`scripts/import.mjs` runs one **adapter** per publisher (`scripts/import/<publisher>.mjs`). All adapters share `scripts/import/core.mjs`, which handles the database connection, batching, previews and bonus items / release dates. Every adapter produces the same series → volumes / special editions / merchandise payload for `import_catalog()`.
+
+| Publisher | Source | Speed |
+| --- | --- | --- |
+| Phoenix Next | Public Magento GraphQL API | ~45 requests for the whole catalog |
+| Luckpim | Product sitemap + product pages (no public API) | 1 page per second. The first run reads ~2,500 pages (≈45 min); weekly runs read only new products plus a rotating 1/12 of the known ones |
+
+To add a publisher, create `scripts/import/<name>.mjs` exporting `key`, `publisher` and `collect(options)`, register it in `scripts/import.mjs`, then dry-run it and review `scripts/.cache/<name>-preview.json`.
+
+#### Phoenix Next
+
+The Phoenix Next adapter reads Phoenix Next's public GraphQL API (the shop runs Magento). It does not scrape HTML: about 45 requests return the whole catalog, roughly 4,500 products.
 
 For each product it collects:
 
@@ -326,5 +337,8 @@ supabase/
   seed.sql        optional demo catalog
   tests/run.mjs   database test harness (npm run test:db)
 scripts/
-  import-phoenixnext.mjs   Phoenix Next catalog importer (npm run import:phoenixnext)
+  import.mjs               publisher importer (npm run import)
+  import/core.mjs          shared import code
+  import/phoenixnext.mjs   Phoenix Next adapter
+  import/luckpim.mjs       Luckpim adapter
 ```

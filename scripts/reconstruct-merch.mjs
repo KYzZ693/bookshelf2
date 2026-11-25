@@ -111,6 +111,8 @@ export function plan(m) {
 async function downloadRGBA(url) {
   const res = await fetch(url, { headers: { 'user-agent': 'BookShelf-merch-preview/1.0' } })
   if (!res.ok) throw new Error(`photo download failed (HTTP ${res.status})`)
+  // The browser builds the model from the photo, which needs the image host to allow it (CORS).
+  if (!res.headers.get('access-control-allow-origin')) throw new Error('the image host does not allow its photos to be used as 3D textures in the browser')
   const buf = Buffer.from(await res.arrayBuffer())
   if (!(buf[0] === 0xff && buf[1] === 0xd8)) throw new Error('only JPEG product photos can be analysed')
   const img = jpeg.decode(buf, { useTArray: true, formatAsRGBA: true, maxMemoryUsageInMB: 256 })
