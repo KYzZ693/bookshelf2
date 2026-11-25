@@ -135,6 +135,8 @@ select id, 'admin' from auth.users where email = 'you@example.com';
 > รูปปกลิงก์ไปที่เซิร์ฟเวอร์รูปของ Phoenix Next ไม่ได้คัดลอกมาเก็บ ชื่อเรื่อง ราคา และ ISBN เป็นข้อเท็จจริง แต่ภาพปกและเรื่องย่อเป็นลิขสิทธิ์ของสำนักพิมพ์
 > จึงควรใช้เป็นเว็บส่วนตัว หรือขออนุญาต Phoenix Next ก่อนเปิดให้คนทั่วไปใช้ และรันการนำเข้าเป็นครั้งคราว (เช่น สัปดาห์ละครั้ง) ไม่ใช่ตลอดเวลา
 
+**อัปเดตอัตโนมัติทุกสัปดาห์:** `.github/workflows/weekly-import.yml` จะนำเข้าข้อมูลทุกวันจันทร์ ตี 3 เวลาไทย แล้วสร้างโมเดล 3D ให้สินค้าที่เพิ่มเข้ามาใหม่ ต้องเพิ่ม **secret** ชื่อ `SUPABASE_SECRET_KEY` ใน repo ส่วน variable `VITE_SUPABASE_URL` ใช้ร่วมกับ workflow deploy ถ้าอยากสั่งรันทันที ไปที่ Actions → *Weekly catalog import* → **Run workflow** ทุกครั้งที่รัน ไฟล์ review จะเก็บไว้ให้ดาวน์โหลด 14 วัน ถ้า repo ไม่มีความเคลื่อนไหวนาน 60 วัน GitHub จะหยุดงานตั้งเวลาไว้ชั่วคราว ให้กดเปิดใหม่ในแท็บ Actions
+
 ### Merchandise, Artbook และ Special Edition
 
 - **Merchandise** มีหน้าแกลเลอรีของตัวเองที่ `/merchandise` (อยู่ในเมนูหลัก) สินค้าแสดงเป็นรูปในกรอบ กรองได้ตามประเภท (Figure, Acrylic Stand, Keychain, Poster, Wall Scroll, Art Print, Character Goods, Collectible ฯลฯ) และตามซีรีส์ หน้าซีรีส์จะมีลิงก์ไปที่สินค้าของซีรีส์นั้นแทนการแสดงสินค้าในหน้า

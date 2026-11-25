@@ -1,0 +1,67 @@
+# Refreshes the catalog from publisher websites once a week.
+#   1. import:phoenixnext  -> new volumes / merchandise, updated prices, covers, synopses, bonus items
+#   2. reconstruct:merch   -> simulated 3D previews for merchandise that has none yet
+#
+# Repository settings -> Secrets and variables -> Actions:
+#   Secrets:   SUPABASE_SECRET_KEY        (server-side key; never a VITE_ variable)
+#   Variables: VITE_SUPABASE_URL          (already used by the Pages deploy)
+#
+# Run it by hand any time: Actions -> "Weekly catalog import" -> Run workflow.
+name: Weekly catalog import
+
+on:
+  schedule:
+    # Every Monday 03:00 Thailand time (Sunday 20:00 UTC)
+    - cron: '0 20 * * 0'
+  workflow_dispatch:
+    inputs:
+      reconstruct:
+        description: 'Also build 3D previews for new merchandise'
+        type: boolean
+        default: true
+
+permissions:
+  contents: read
+
+concurrency:
+  group: catalog-import
+  cancel-in-progress: false
+
+jobs:
+  import:
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    env:
+      VITE_SUPABASE_URL: ${{ vars.VITE_SUPABASE_URL }}
+      SUPABASE_SECRET_KEY: ${{ secrets.SUPABASE_SECRET_KEY }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          # Node 24 runs the shared TypeScript analysis module directly (type stripping).
+          node-version: 24
+          cache: npm
+      - run: npm ci
+
+      - name: Check configuration
+        run: |
+          if [ -z "$VITE_SUPABASE_URL" ]; then echo "::error::Add the VITE_SUPABASE_URL repository variable."; exit 1; fi
+          if [ -z "$SUPABASE_SECRET_KEY" ]; then echo "::error::Add the SUPABASE_SECRET_KEY repository secret."; exit 1; fi
+
+      - name: Import Phoenix Next
+        run: npm run import:phoenixnext
+
+      - name: Build 3D previews for new merchandise
+        if: ${{ github.event_name == 'schedule' || inputs.reconstruct }}
+        run: npm run reconstruct:merch
+
+      - name: Keep the review files
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: import-review
+          path: |
+            scripts/.cache/phoenixnext-preview.json
+            scripts/.cache/merch-reconstruction-review.json
+          if-no-files-found: ignore
+          retention-days: 14

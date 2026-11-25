@@ -136,6 +136,8 @@ Re-running is safe. Rows are matched by SKU, so nothing is duplicated. New volum
 > belong to the publisher, so keep the site personal or ask Phoenix Next for permission before publishing it widely. Run the import
 > occasionally (e.g. weekly), not continuously.
 
+**Weekly refresh.** `.github/workflows/weekly-import.yml` runs the import every Monday at 03:00 Thailand time, then builds 3D previews for new merchandise. Add the `SUPABASE_SECRET_KEY` repository **secret**; the `VITE_SUPABASE_URL` variable is shared with the deploy workflow. To run it now, go to Actions → *Weekly catalog import* → **Run workflow**. Each run keeps its review files as a downloadable artifact for 14 days. GitHub pauses scheduled workflows in repositories with no activity for 60 days; re-enable it in the Actions tab if that happens.
+
 ### Merchandise, artbooks and special editions
 
 - **Merchandise** has its own gallery at `/merchandise` (main navigation). Products are shown as framed photos, and you can filter them by type (Figure, Acrylic Stand, Keychain, Poster, Wall Scroll, Art Print, Character Goods, Collectible, …) and by series. Series pages link to their merchandise instead of listing it.
