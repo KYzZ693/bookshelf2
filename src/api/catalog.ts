@@ -17,11 +17,11 @@ import { qk } from './keys'
 
 /** Explicit column lists keep generated search columns out of responses. */
 export const BOOK_COLUMNS =
-  'id, series_id, title, volume_number, item_type, edition_type, edition_notes, cover_url, synopsis, price, currency, publisher_id, publisher_product_url, publication_date, isbn, page_count, created_at, updated_at'
+  'id, series_id, title, volume_number, item_type, edition_type, edition_notes, cover_url, synopsis, price, currency, publisher_id, publisher_product_url, publication_date, isbn, page_count, regular_book_id, bonus_items, created_at, updated_at'
 export const CREDIT_COLUMNS =
   'book_authors(position, author:authors(id, name)), book_illustrators(position, illustrator:illustrators(id, name)), book_translators(position, translator:translators(id, name))'
 export const MERCH_COLUMNS =
-  'id, series_id, title, merch_type, description, image_url, price, currency, publisher_id, product_url, release_date, created_at, updated_at'
+  'id, series_id, title, merch_type, description, image_url, price, currency, publisher_id, product_url, release_date, model_url, model_format, model_source, model_params, reference_urls, reconstruction_status, reconstruction_notes, preview_available, created_at, updated_at'
 
 const PEOPLE_TABLE: Record<PersonRole, 'authors' | 'illustrators' | 'translators'> = {
   author: 'authors',
@@ -81,7 +81,13 @@ export function useRecentSeries(limit = 16) {
     staleTime: 5 * 60_000,
     queryFn: async () =>
       unwrap(
-        await supabase.from('series_overview').select('*').order('created_at', { ascending: false }).limit(limit),
+        await supabase
+          .from('series_overview')
+          .select('*')
+          // merchandise-only series live in the Merchandise gallery, not on the shelf
+          .or('regular_volume_count.gt.0,special_volume_count.gt.0')
+          .order('created_at', { ascending: false })
+          .limit(limit),
       ) as SeriesOverview[],
   })
 }
@@ -169,6 +175,36 @@ export function useMerch(id: string | undefined) {
           .eq('id', id!)
           .maybeSingle(),
       ) as unknown as MerchandiseDetail | null,
+  })
+}
+
+export type EditionBrief = Pick<
+  BookListItem,
+  'id' | 'title' | 'volume_number' | 'edition_type' | 'edition_notes' | 'cover_url' | 'price' | 'currency' | 'bonus_items'
+>
+const EDITION_BRIEF = 'id, title, volume_number, edition_type, edition_notes, cover_url, price, currency, bonus_items'
+
+/** Special editions packaging a regular volume (books.regular_book_id). */
+export function useSpecialEditions(regularId: string | undefined, enabled = true) {
+  return useQuery({
+    queryKey: [...qk.book(regularId ?? ''), 'specials'],
+    enabled: !!regularId && enabled,
+    staleTime: 5 * 60_000,
+    queryFn: async () =>
+      unwrap(
+        await supabase.from('books').select(EDITION_BRIEF).eq('regular_book_id', regularId!).order('edition_type').order('title'),
+      ) as unknown as EditionBrief[],
+  })
+}
+
+/** The regular volume a special edition belongs to. */
+export function useRegularVolume(id: string | null | undefined) {
+  return useQuery({
+    queryKey: [...qk.book(id ?? ''), 'brief'],
+    enabled: !!id,
+    staleTime: 5 * 60_000,
+    queryFn: async () =>
+      unwrap(await supabase.from('books').select(EDITION_BRIEF).eq('id', id!).maybeSingle()) as unknown as EditionBrief | null,
   })
 }
 

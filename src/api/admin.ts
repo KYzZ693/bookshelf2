@@ -60,6 +60,13 @@ export interface MerchInput {
   publisher_id: string | null
   product_url: string | null
   release_date: string | null
+  /** 3D preview fields; omitted = unchanged. */
+  model_url?: string | null
+  model_format?: 'glb' | 'gltf' | 'procedural' | null
+  model_source?: string | null
+  reconstruction_status?: 'not_started' | 'researching' | 'modeling' | 'completed' | 'failed'
+  reconstruction_notes?: string | null
+  preview_available?: boolean
 }
 
 const PEOPLE_TABLE: Record<PersonRole, 'authors' | 'illustrators' | 'translators'> = {

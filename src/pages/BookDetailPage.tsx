@@ -1,6 +1,7 @@
 import { Link, useParams } from 'react-router-dom'
-import { AlertCircle, ChevronLeft, ChevronRight } from 'lucide-react'
-import { creditNames, useBook, useSeriesVolumeNav } from '@/api/catalog'
+import { AlertCircle, ArrowLeft, ChevronLeft, ChevronRight, Gift, Sparkles } from 'lucide-react'
+import { creditNames, useBook, useRegularVolume, useSeriesVolumeNav, useSpecialEditions, type EditionBrief } from '@/api/catalog'
+import { CoverImage } from '@/components/CoverImage'
 import { ItemDetailLayout, PublisherLinkButton, type InfoRow } from '@/components/detail/ItemDetailLayout'
 import { CollectionButtons } from '@/components/detail/CollectionButtons'
 import { OpenableBook } from '@/components/detail/OpenableBook'
@@ -34,6 +35,9 @@ export default function BookDetailPage() {
   const { id } = useParams()
   const { data: book, isPending, isError, error, refetch } = useBook(id)
   const nav = useSeriesVolumeNav(book?.series_id)
+  const isRegular = book?.edition_type === 'regular'
+  const specials = useSpecialEditions(book?.id, !!book && isRegular)
+  const parent = useRegularVolume(book && !isRegular ? book.regular_book_id : null)
 
   if (isPending) {
     return (
@@ -69,6 +73,25 @@ export default function BookDetailPage() {
     { label: 'Item type', value: FORMAT_LABEL[book.item_type] },
     { label: 'Edition', value: book.edition_type !== 'regular' ? EDITION_LABEL[book.edition_type] : null },
     { label: 'Edition details', value: book.edition_notes, wide: true },
+    {
+      label: 'Special edition of',
+      value: parent.data ? (
+        <Link to={`/book/${parent.data.id}`} className="hover:text-accent">{parent.data.title}</Link>
+      ) : null,
+    },
+    {
+      label: 'Included in this edition',
+      wide: true,
+      value: book.bonus_items?.length ? (
+        <ul className="mt-1 space-y-1">
+          {book.bonus_items.map((b, i) => (
+            <li key={i} className="flex gap-2">
+              <Gift className="mt-0.5 size-3.5 shrink-0 text-special" /> {b}
+            </li>
+          ))}
+        </ul>
+      ) : null,
+    },
     { label: authors.length > 1 ? 'Authors' : 'Author', value: authors.length ? <PeopleLinks people={authors} param="authors" /> : null },
     { label: illustrators.length > 1 ? 'Illustrators' : 'Illustrator', value: illustrators.length ? <PeopleLinks people={illustrators} param="illustrators" /> : null },
     { label: translators.length > 1 ? 'Translators' : 'Translator', value: translators.length ? <PeopleLinks people={translators} param="translators" /> : null },
@@ -94,6 +117,14 @@ export default function BookDetailPage() {
         { label: vol ? `Vol. ${vol}` : book.title },
       ]}
       cover={
+        book.item_type === 'artbook' ? (
+          // Artbooks: the artwork in a gallery frame; the synopsis is a normal tab, not an opening book.
+          <div className="rounded-[8px] bg-gradient-to-br from-[#3a332b] to-[#1f1b16] p-[9px] shadow-book">
+            <div className="bg-[#f4efe4] p-[8%] shadow-[inset_0_1px_3px_rgb(0_0_0/0.25)]">
+              <CoverImage src={book.cover_url} title={book.title} category="artbook" plain fit="contain" eager aspect="aspect-[4/5]" rounded="rounded-[2px]" sizes="(min-width: 1024px) 320px, 260px" />
+            </div>
+          </div>
+        ) : (
         <OpenableBook
           coverUrl={book.cover_url}
           title={book.title}
@@ -103,6 +134,7 @@ export default function BookDetailPage() {
           showcase={book.edition_type !== 'regular'}
           meta={[book.series?.title !== book.title ? book.series?.title : null, vol ? `Vol. ${vol}` : null, publisher?.name].filter(Boolean).join(' · ') || null}
         />
+        )
       }
       eyebrow={
         book.series && (
@@ -124,9 +156,20 @@ export default function BookDetailPage() {
         <div className="flex flex-col gap-2.5 sm:flex-row sm:flex-wrap sm:items-center">
           <CollectionButtons kind="book" id={book.id} title={book.title} />
           <PublisherLinkButton href={publisherHref} />
+          {!isRegular && parent.data && (
+            <Link
+              to={`/book/${parent.data.id}`}
+              className="inline-flex h-11 items-center justify-center gap-2 rounded-xl border border-line bg-surface px-5 text-sm font-semibold text-ink transition-colors hover:border-accent hover:text-accent"
+            >
+              <ArrowLeft className="size-4" /> Regular volume
+            </Link>
+          )}
+          {isRegular && !!specials.data?.length && <SpecialEditionsPanel editions={specials.data} />}
         </div>
       }
       rows={rows}
+      synopsis={book.item_type === 'artbook' ? book.synopsis : undefined}
+      synopsisLabel="Description"
       footer={
         (prev || next) && (
           <div className="grid grid-cols-2 gap-3">
@@ -146,5 +189,41 @@ export default function BookDetailPage() {
         )
       }
     />
+  )
+}
+
+/** Prominent link from a regular volume to the special editions that package it. */
+function SpecialEditionsPanel({ editions }: { editions: EditionBrief[] }) {
+  return (
+    <section
+      aria-label="Special editions of this volume"
+      className="mt-2 w-full overflow-hidden rounded-2xl border border-special/35 bg-gradient-to-br from-special-soft via-surface to-surface p-4 sm:basis-full"
+    >
+      <p className="flex items-center gap-2 text-sm font-semibold text-special">
+        <Sparkles className="size-4" />
+        {editions.length > 1 ? `Also available as ${editions.length} special editions` : 'Also available as a special edition'}
+      </p>
+      <div className="mt-3 grid gap-2.5 sm:grid-cols-2">
+        {editions.map((e) => (
+          <Link
+            key={e.id}
+            to={`/book/${e.id}`}
+            className="group flex items-center gap-3 rounded-xl border border-line bg-surface p-2.5 pr-3 shadow-sm transition-all hover:-translate-y-0.5 hover:border-special hover:shadow-lift"
+          >
+            <CoverImage src={e.cover_url} title={e.title} category="special_edition" aspect="aspect-square" fit="contain" rounded="rounded-lg" className="w-16 shrink-0" sizes="64px" />
+            <span className="min-w-0 flex-1">
+              <span className="block text-[11px] font-semibold tracking-wide text-special uppercase">{EDITION_LABEL[e.edition_type]}</span>
+              <span className="line-clamp-2 text-sm leading-snug font-semibold text-ink group-hover:text-special">{e.title}</span>
+              <span className="mt-0.5 block truncate text-xs text-muted">
+                {[e.edition_notes, formatPrice(e.price, e.currency)].filter(Boolean).join(' · ')}
+              </span>
+            </span>
+            <span className="inline-flex h-8 shrink-0 items-center gap-1 rounded-lg bg-special px-3 text-xs font-semibold text-white">
+              View <ChevronRight className="size-3.5" />
+            </span>
+          </Link>
+        ))}
+      </div>
+    </section>
   )
 }

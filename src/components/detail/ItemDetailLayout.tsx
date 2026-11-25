@@ -35,7 +35,10 @@ export function ItemDetailLayout({
   synopsis,
   synopsisLabel = 'Synopsis',
   footer,
+  wideCover = false,
 }: {
+  /** Larger media column (merchandise 3D preview / gallery). */
+  wideCover?: boolean
   crumbs: Crumb[]
   cover: ReactNode
   eyebrow?: ReactNode
@@ -80,11 +83,20 @@ export function ItemDetailLayout({
         ))}
       </nav>
 
-      <div className="grid gap-7 md:grid-cols-[260px_1fr] md:gap-10 lg:grid-cols-[320px_1fr] lg:gap-14">
+      <div
+        className={cn(
+          'grid gap-7',
+          wideCover
+            ? 'lg:grid-cols-[minmax(0,1.1fr)_minmax(0,1fr)] lg:gap-12'
+            : 'md:grid-cols-[260px_1fr] md:gap-10 lg:grid-cols-[320px_1fr] lg:gap-14',
+        )}
+      >
         <motion.div
           initial={{ opacity: 0, y: 12 }}
           animate={{ opacity: 1, y: 0 }}
-          className="mx-auto w-48 sm:w-56 md:sticky md:top-24 md:w-full md:self-start"
+          className={cn(
+            wideCover ? 'w-full lg:sticky lg:top-24 lg:self-start' : 'mx-auto w-48 sm:w-56 md:sticky md:top-24 md:w-full md:self-start',
+          )}
         >
           {cover}
         </motion.div>

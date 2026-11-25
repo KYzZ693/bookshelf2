@@ -32,7 +32,8 @@ npm run dev                 # http://localhost:5173
 | `npm run dev` | เปิด dev server |
 | `npm run build` | ตรวจ TypeScript + build สำหรับ production ลงใน `dist/` (สร้าง `dist/404.html` สำหรับ SPA routing ด้วย) |
 | `npm run typecheck` | ตรวจ TypeScript อย่างเดียว |
-| `npm run test:db` | รัน migration ทั้งหมด + seed บน PGlite (PostgreSQL จริงที่คอมไพล์เป็น WASM) แล้วตรวจ RLS, การค้นหา, คอลเลกชัน, ฟังก์ชันแอดมิน ตัวนำเข้าข้อมูล และ constraint (155 รายการ) |
+| `npm run test:db` | รัน migration ทั้งหมด + seed บน PGlite (PostgreSQL จริงที่คอมไพล์เป็น WASM) แล้วตรวจ RLS, การค้นหา, คอลเลกชัน, ฟังก์ชันแอดมิน ตัวนำเข้าข้อมูล และ constraint (175 รายการ) |
+| `npm run reconstruct:merch` | สร้างตัวอย่าง 3D จำลองของสินค้า (ดู [ตัวอย่างโมเดล 3D ของสินค้า](#ตัวอย่างโมเดล-3d-ของสินค้า)) |
 | `npm run import:phoenixnext` | นำเข้าแคตตาล็อกจาก Phoenix Next (ดู [นำเข้าข้อมูลจาก Phoenix Next](#นำเข้าข้อมูลจาก-phoenix-next)) |
 
 ### Environment variables
@@ -60,6 +61,7 @@ npm run dev                 # http://localhost:5173
 | `…0400_views_and_functions.sql` | `series_overview`, `my_collection`, `search_catalog()`, `get_genre_shelves()`, `set_collection_status()`, `toggle_collection_status()`, `get_collection_stats()`, `admin_save_series()`, `admin_save_book()`, `admin_ensure_person()` |
 | `…0500_storage.sql` | bucket `covers` และ `avatars` พร้อม policy |
 | `…0600_reference_data.sql` | สำนักพิมพ์เริ่มต้น (Phoenix Next, Luckpim, Animag, …) และแนวหนังสือ |
+| `20261125000100_merch_types.sql`, `…000200_special_editions_and_merch_preview.sql` | ประเภทสินค้าใหม่, `regular_book_id` / `bonus_items` ในตาราง books, ฟิลด์ตัวอย่าง 3D ในตาราง merchandise, bucket `models`, ซ่อนซีรีส์ที่มีแต่สินค้าออกจากชั้นหน้าแรก |
 | `…0700_import_and_series_covers.sql` | คีย์ `source_ref` สำหรับนำเข้าข้อมูล, ปกซีรีส์อัตโนมัติ (จากเล่มปกติเล่มแรก), ฟังก์ชัน `import_catalog()` (เรียกได้เฉพาะ service_role) |
 | `supabase/seed.sql` | *ไม่บังคับ* แคตตาล็อกตัวอย่าง: ซีรีส์ **สมมติ** 8 เรื่อง พร้อมเล่มปกติ ฉบับพิเศษ และสินค้า |
 
@@ -132,6 +134,36 @@ select id, 'admin' from auth.users where email = 'you@example.com';
 
 > รูปปกลิงก์ไปที่เซิร์ฟเวอร์รูปของ Phoenix Next ไม่ได้คัดลอกมาเก็บ ชื่อเรื่อง ราคา และ ISBN เป็นข้อเท็จจริง แต่ภาพปกและเรื่องย่อเป็นลิขสิทธิ์ของสำนักพิมพ์
 > จึงควรใช้เป็นเว็บส่วนตัว หรือขออนุญาต Phoenix Next ก่อนเปิดให้คนทั่วไปใช้ และรันการนำเข้าเป็นครั้งคราว (เช่น สัปดาห์ละครั้ง) ไม่ใช่ตลอดเวลา
+
+### Merchandise, Artbook และ Special Edition
+
+- **Merchandise** มีหน้าแกลเลอรีของตัวเองที่ `/merchandise` (อยู่ในเมนูหลัก) สินค้าแสดงเป็นรูปในกรอบ กรองได้ตามประเภท (Figure, Acrylic Stand, Keychain, Poster, Wall Scroll, Art Print, Character Goods, Collectible ฯลฯ) และตามซีรีส์ หน้าซีรีส์จะมีลิงก์ไปที่สินค้าของซีรีส์นั้นแทนการแสดงสินค้าในหน้า
+- **Artbook** ยังเป็นหนังสือ (`books.item_type = 'artbook'`) แสดงในกรอบแบบภาพแขวนผนัง กดแล้วเข้าหน้ารายละเอียดได้ตามปกติ (แท็บ Information และ Description) แต่ไม่มีแอนิเมชันหนังสือเปิดอ่านหลังเล่มแบบเล่มในซีรีส์
+- **Special Edition** ผูกกับเล่มปกติผ่าน `books.regular_book_id` ซึ่ง trigger จะจับคู่ให้อัตโนมัติจากซีรีส์และเลขเล่ม หน้าซีรีส์แสดงเฉพาะเล่มปกติ หน้าของแต่ละเล่มจะมีกล่องเด่น "Also available as a special edition" ส่วนหน้า Special Edition มีลิงก์กลับไปเล่มปกติ และแสดงรายการของแถม (`books.bonus_items`)
+
+### ตัวอย่างโมเดล 3D ของสินค้า
+
+เมื่อเปิดหน้าสินค้าที่มีตัวอย่าง 3D จะเห็นโมเดลที่หมุน ซูม รีเซ็ตมุมมอง และดูเต็มจอได้ three.js โหลดเฉพาะในหน้านี้ ถ้าไม่มีตัวอย่าง หน้าจะแสดงแกลเลอรีรูป (ซูมได้) พร้อมบอกเหตุผล
+
+ตัวอย่าง 3D มาจาก 2 แหล่ง:
+
+1. **ไฟล์โมเดล:** GLB / glTF ของทางการ หรือที่มีสิทธิ์ใช้งานถูกต้อง อัปโหลดได้ที่ **Admin → Merchandise → 3D preview** (เก็บใน bucket `models`)
+2. **โมเดลจำลอง** ที่สร้างด้วย `npm run reconstruct:merch` script จะอ่านรูปสินค้าแต่ละชิ้น ตัดสินว่าสร้างจากรูปได้ไหม แล้วบันทึกค่าลงในแถวสินค้า (`model_params`, `reconstruction_status`, `reconstruction_notes`, `reference_urls`) จากนั้นเบราว์เซอร์จะสร้างโมเดลให้:
+   - **Acrylic stand และ keychain:** ตัดลายออกจากรูป วางบนแผ่นอะคริลิกใสที่ขอบตามรูปทรงจริง พร้อมฐานหรือห่วงโลหะ
+   - **เข็มกลัด:** หน้าโค้งพิมพ์ลาย ด้านหลังเป็นโลหะพร้อมเข็ม
+   - **โปสเตอร์ โปสการ์ด ชิกิชิ โบรไมด์ แฟ้มใส และการ์ด:** แผ่นพิมพ์หรือบอร์ด
+   - **Wall scroll:** ผ้าพร้อมแกน
+
+   ทั้งหมดเป็นการจำลองโดยประมาณ ความหนา ขนาด และอุปกรณ์ใช้ค่าทั่วไป ไม่ได้วัดจากของจริง และหน้าเว็บจะระบุไว้ชัดว่าเป็นโมเดลจำลอง
+
+ฟิกเกอร์ ตุ๊กตา เสื้อ กระเป๋า และสินค้าที่มีแต่รูปโปรโมท **จะไม่ถูกสร้าง** หน้าเหล่านี้แสดงแกลเลอรีรูปจนกว่าจะมีการอัปโหลดไฟล์ GLB
+
+```bash
+npm run reconstruct:merch -- --dry-run   # วิเคราะห์อย่างเดียว เขียนผลไว้ที่ scripts/.cache/merch-reconstruction-review.json
+npm run reconstruct:merch                # บันทึกผล (ต้องมี SUPABASE_SECRET_KEY ใน .env.local)
+```
+
+script จะทำเฉพาะชิ้นที่ยังไม่มีผล ใช้ `--force` ถ้าต้องการทำใหม่ทั้งหมด หรือ `--only=<id>` สำหรับชิ้นเดียว และจะไม่เขียนทับไฟล์โมเดลที่อัปโหลดไว้
 
 ## 3. ระบบยืนยันตัวตน (Authentication)
 

@@ -238,7 +238,10 @@ function parseDescription(html) {
   body = body.filter((l) => !FILLER.test(l) && !NOTICE.test(l) && !TAIL.test(l) && !/^\([^()]*\)$/.test(l))
 
   const synopsis = body.join('\n').replace(/\n{3,}/g, '\n\n').trim()
-  return { synopsis: synopsis ? synopsis.slice(0, 20000) : null, originalTitle, credits, pages: pages && pages <= 20000 ? pages : null }
+  // Set contents ("1) ไลท์โนเวล ... 2) Acrylic Standee ...") listed before the synopsis.
+  const before = markerAt >= 0 ? lines.slice(0, markerAt) : lines
+  const bonusItems = [...new Set(before.map((l) => l.match(/^\s*\d{1,2}\s*[).]\s*(.{2,300})$/)?.[1]?.trim()).filter(Boolean))].slice(0, 30)
+  return { synopsis: synopsis ? synopsis.slice(0, 20000) : null, originalTitle, credits, pages: pages && pages <= 20000 ? pages : null, bonusItems }
 }
 
 const PREFIX_TYPE = {
@@ -340,15 +343,19 @@ function editionOf(sku, title, bonus) {
   return { edition: 'regular', notes }
 }
 
+// Order matters: the first match wins ("Acrylic Stand Key Chain" is a keychain).
 const MERCH_RULES = [
-  [/acrylic stand|สแตนดี้|standee|diorama/i, 'acrylic_stand'],
-  [/tapestry|ผ้าแขวน/i, 'tapestry'],
+  [/key ?chain|key ?holder|pendant|charm|strap|พวงกุญแจ/i, 'keychain'],
+  [/acrylic (character |petit |big )?(stand|figure)|สแตนดี้|standee|diorama|sns plate/i, 'acrylic_stand'],
+  [/nendoroid|figma|figure|q posket|luminasta|good ?smile|model kit|ฟิกเกอร์/i, 'figure'],
+  [/tapestry|wall scroll|ผ้าแขวน/i, 'tapestry'],
+  [/shikishi|bromide|art print|art board|canvas/i, 'art_print'],
   [/poster|โปสเตอร์/i, 'poster'],
-  [/postcard|โปสการ์ด/i, 'postcard'],
+  [/post ?card|โปสการ์ด/i, 'postcard'],
   [/bookmark|ที่คั่น/i, 'bookmark'],
-  [/key ?chain|key ?holder|charm|พวงกุญแจ/i, 'keychain'],
-  [/figure|nendoroid|figma|plush|doll|nui|ตุ๊กตา|ฟิกเกอร์/i, 'figure'],
+  [/plush|\bnui\b|doll|mascot|blind box|ตุ๊กตา/i, 'collectible'],
   [/art collection|art ?book|illustration/i, 'art_collection'],
+  [/badge|button|clear (file|folder)|sticker|t-shirt|\btee\b|bag|pouch|case|mouse ?pad|pillow|towel|magnet|card|ticket|clip|mask|note|mug|coaster|plate|panel/i, 'character_goods'],
 ]
 const merchType = (title) => MERCH_RULES.find(([re]) => re.test(title))?.[1] ?? 'other'
 
@@ -435,7 +442,7 @@ function buildCatalog(products) {
     if (kind !== 'merchandise' && (s.series_type === 'other' || (s.series_type === 'artbook' && kind !== 'artbook'))) s.series_type = kind
     for (const g of genresOf(p)) s.genres.add(g)
 
-    const { synopsis, originalTitle, credits, pages } = parseDescription(p.description?.html)
+    const { synopsis, originalTitle, credits, pages, bonusItems } = parseDescription(p.description?.html)
     if (originalTitle && !s.original_title && kind !== 'merchandise') s.original_title = originalTitle.slice(0, 300)
     const { price, currency } = priceOf(p)
     const productUrl = p.url_key ? `${SITE}/${p.url_key}.html` : null
@@ -466,6 +473,7 @@ function buildCatalog(products) {
       price,
       currency,
       isbn: isbnOf(p),
+      bonus_items: edition !== 'regular' ? bonusItems : [],
       product_url: productUrl,
     })
   }
@@ -587,6 +595,19 @@ async function main() {
   }
   process.stdout.write('\n')
   console.log('  result:', totals)
+
+  // Bonus items of special editions (separate call: added by a later migration).
+  const extras = series.flatMap((s) => s.books.filter((b) => b.bonus_items?.length).map((b) => ({ ref: b.ref, bonus_items: b.bonus_items })))
+  let extrasSaved = 0
+  for (let i = 0; i < extras.length; i += 500) {
+    const { data, error } = await supabase.rpc('import_book_extras', { p_items: extras.slice(i, i + 500) })
+    if (error) {
+      console.warn(`  bonus items skipped: ${error.message} (run: npx supabase db push --remote)`)
+      break
+    }
+    extrasSaved += data ?? 0
+  }
+  if (extras.length) console.log(`  special-edition bonus items: ${extras.length} editions, ${extrasSaved} updated`)
   console.log('\nDone. Series covers follow each series\' first regular volume automatically.\n')
 }
 

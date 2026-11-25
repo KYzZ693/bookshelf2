@@ -11,7 +11,12 @@ export type MerchType =
   | 'postcard'
   | 'bookmark'
   | 'tapestry'
+  | 'art_print'
+  | 'character_goods'
+  | 'collectible'
   | 'other'
+export type ReconstructionStatus = 'not_started' | 'researching' | 'modeling' | 'completed' | 'failed'
+export type ModelFormat = 'glb' | 'gltf' | 'procedural'
 export type CompletionStatus = 'ongoing' | 'completed' | 'hiatus' | 'cancelled'
 export type CollectionStatus = 'owned' | 'want'
 /** Filterable item category: a book format, a special edition, or merchandise. */
@@ -89,6 +94,9 @@ export interface Book {
   publication_date: string | null
   isbn: string | null
   page_count: number | null
+  /** Special editions: the regular volume this edition packages. */
+  regular_book_id: string | null
+  bonus_items: string[]
   created_at: string
   updated_at: string
 }
@@ -126,6 +134,15 @@ export interface Merchandise {
   publisher_id: string | null
   product_url: string | null
   release_date: string | null
+  model_url: string | null
+  model_format: ModelFormat | null
+  model_source: string | null
+  /** Inputs for the in-browser procedural reconstruction (see src/components/merch/three). */
+  model_params: Record<string, unknown> | null
+  reference_urls: string[]
+  reconstruction_status: ReconstructionStatus
+  reconstruction_notes: string | null
+  preview_available: boolean
   created_at: string
   updated_at: string
 }

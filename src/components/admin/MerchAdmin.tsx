@@ -2,8 +2,9 @@ import { useEffect, useId, useState } from 'react'
 import { keepPreviousData, useQuery } from '@tanstack/react-query'
 import { Package, Plus } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
-import { formatDate, formatPrice } from '@/lib/utils'
-import { MERCH_LABEL } from '@/lib/labels'
+import { errorMessage, formatDate, formatPrice } from '@/lib/utils'
+import { uploadModel } from '@/api/storage'
+import { MERCH_LABEL, MERCH_ORDER } from '@/lib/labels'
 import { adminApi, useAdminMutation, type MerchInput } from '@/api/admin'
 import { usePublishers } from '@/api/catalog'
 import { CoverImage } from '@/components/CoverImage'
@@ -54,7 +55,7 @@ export function MerchAdmin() {
       let q = supabase
         .from('merchandise')
         .select(
-          'id, series_id, title, merch_type, description, image_url, price, currency, publisher_id, product_url, release_date, created_at, updated_at, series:series(id, title)',
+          'id, series_id, title, merch_type, description, image_url, price, currency, publisher_id, product_url, release_date, model_url, model_format, model_source, model_params, reference_urls, reconstruction_status, reconstruction_notes, preview_available, created_at, updated_at, series:series(id, title)',
           { count: 'exact' },
         )
       if (seriesId) q = q.eq('series_id', seriesId)
@@ -100,7 +101,7 @@ export function MerchAdmin() {
         <div className="sm:w-44">
           <SelectField value={type} onChange={(e) => setType(e.target.value as MerchType | 'all')} aria-label="Merchandise type">
             <option value="all">All types</option>
-            {(Object.keys(MERCH_LABEL) as MerchType[]).map((t) => (
+            {MERCH_ORDER.map((t) => (
               <option key={t} value={t}>
                 {MERCH_LABEL[t]}
               </option>
@@ -186,6 +187,11 @@ function MerchForm({
   const [releaseDate, setReleaseDate] = useState(initial?.release_date ?? '')
   const [errors, setErrors] = useState<Errors<MerchField>>({})
   const [uploading, setUploading] = useState(false)
+  const hadFile = initial?.model_format === 'glb' || initial?.model_format === 'gltf'
+  const [modelUrl, setModelUrl] = useState(hadFile ? (initial?.model_url ?? '') : '')
+  const [modelSource, setModelSource] = useState(hadFile ? (initial?.model_source ?? '') : '')
+  const [notes, setNotes] = useState(initial?.reconstruction_notes ?? '')
+  const [modelError, setModelError] = useState<string | null>(null)
 
   const save = useAdminMutation((input: MerchInput) => adminApi.saveMerch(input), {
     success: initial ? 'Merchandise updated' : 'Merchandise created',
@@ -217,7 +223,42 @@ function MerchForm({
       publisher_id: publisherId,
       product_url: toNull(productUrl),
       release_date: toNull(releaseDate),
+      reconstruction_notes: toNull(notes),
+      ...modelFields(),
     })
+  }
+
+  /** A model file switches the preview to it; removing it falls back to the simulated model if there is one. */
+  function modelFields(): Partial<MerchInput> {
+    const url = toNull(modelUrl)
+    if (url) {
+      return {
+        model_url: url,
+        model_format: /\.gltf(\?|$)/i.test(url) ? 'gltf' : 'glb',
+        model_source: toNull(modelSource) ?? 'Model file added by an admin',
+        preview_available: true,
+        reconstruction_status: 'completed',
+      }
+    }
+    if (hadFile) {
+      return initial?.model_params
+        ? { model_url: null, model_format: 'procedural', model_source: 'Procedural reconstruction from the publisher product photo (Book Shelf)', preview_available: true }
+        : { model_url: null, model_format: null, model_source: null, preview_available: false, reconstruction_status: 'not_started' }
+    }
+    return {}
+  }
+
+  async function onModelFile(file: File | undefined) {
+    if (!file) return
+    setModelError(null)
+    setUploading(true)
+    try {
+      setModelUrl(await uploadModel(file))
+    } catch (e) {
+      setModelError(errorMessage(e))
+    } finally {
+      setUploading(false)
+    }
   }
 
   return (
@@ -265,7 +306,7 @@ function MerchForm({
         <FormGrid>
           <TextField label="Title" required value={title} onChange={(e) => setTitle(e.target.value)} error={errors.title} maxLength={300} />
           <SelectField label="Type" value={merchType} onChange={(e) => setMerchType(e.target.value as MerchType)}>
-            {(Object.keys(MERCH_LABEL) as MerchType[]).map((t) => (
+            {MERCH_ORDER.map((t) => (
               <option key={t} value={t}>
                 {MERCH_LABEL[t]}
               </option>
@@ -306,6 +347,31 @@ function MerchForm({
             error={errors.product_url}
           />
         </FormGrid>
+
+        <fieldset className="space-y-3 rounded-xl border border-line p-4">
+          <legend className="px-1 text-sm font-semibold text-ink">3D preview</legend>
+          <p className="text-xs text-muted">
+            Current: {initial?.preview_available ? (hadFile ? 'model file' : 'simulated reconstruction from the product photo') : 'none'}
+            {initial ? ` · status ${initial.reconstruction_status.replace('_', ' ')}` : ''}. Simulated previews are made by{' '}
+            <code className="rounded bg-surface-2 px-1">npm run reconstruct:merch</code>. Upload an official or properly licensed GLB / glTF to use a real model instead.
+          </p>
+          <FormGrid>
+            <TextField
+              label="Model file URL (.glb / .gltf)"
+              type="url"
+              placeholder="https://"
+              value={modelUrl}
+              onChange={(e) => setModelUrl(e.target.value)}
+              error={modelError ?? undefined}
+            />
+            <TextField label="Model source / license" value={modelSource} onChange={(e) => setModelSource(e.target.value)} maxLength={500} placeholder="e.g. Official model, CC BY 4.0 by …" />
+          </FormGrid>
+          <label className="inline-flex cursor-pointer items-center gap-2 rounded-lg border border-line px-3 py-2 text-sm font-medium text-ink hover:border-accent">
+            <input type="file" accept=".glb,.gltf,model/gltf-binary,model/gltf+json" className="sr-only" onChange={(e) => onModelFile(e.target.files?.[0])} />
+            Upload model file
+          </label>
+          <TextArea label="Preview notes" rows={2} value={notes} onChange={(e) => setNotes(e.target.value)} maxLength={2000} />
+        </fieldset>
       </form>
     </Modal>
   )

@@ -16,6 +16,7 @@ const SearchPage = lazy(() => import('@/pages/SearchPage'))
 const SeriesDetailPage = lazy(() => import('@/pages/SeriesDetailPage'))
 const BookDetailPage = lazy(() => import('@/pages/BookDetailPage'))
 const MerchDetailPage = lazy(() => import('@/pages/MerchDetailPage'))
+const MerchandisePage = lazy(() => import('@/pages/MerchandisePage'))
 const CollectionPage = lazy(() => import('@/pages/CollectionPage'))
 const ProfilePage = lazy(() => import('@/pages/ProfilePage'))
 const AdminPage = lazy(() => import('@/pages/AdminPage'))
@@ -40,6 +41,7 @@ export default function App() {
                 <Route path="series/:id" element={<Lazy><SeriesDetailPage /></Lazy>} />
                 <Route path="book/:id" element={<Lazy><BookDetailPage /></Lazy>} />
                 <Route path="merch/:id" element={<Lazy><MerchDetailPage /></Lazy>} />
+                <Route path="merchandise" element={<Lazy><MerchandisePage /></Lazy>} />
                 <Route
                   path="collection"
                   element={<RequireAuth reason="Sign in to see your collection."><Lazy><CollectionPage /></Lazy></RequireAuth>}

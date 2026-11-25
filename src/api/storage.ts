@@ -35,6 +35,23 @@ export async function uploadCatalogImage(file: File, folder: string): Promise<st
   return publicStorageUrl('covers', path)
 }
 
+/** Upload a 3D model file (GLB / glTF) into the "models" bucket (admins only). */
+export async function uploadModel(file: File): Promise<string> {
+  const ext = file.name.toLowerCase().endsWith('.gltf') ? 'gltf' : 'glb'
+  if (!/\.(glb|gltf)$/i.test(file.name)) throw new Error('Choose a .glb or .gltf file.')
+  if (file.size > 30 * 1024 * 1024) throw new Error('Model files can be at most 30 MB.')
+  const path = `merchandise/${new Date().getFullYear()}/${randomId()}.${ext}`
+  const { error } = await withProgress(
+    supabase.storage.from('models').upload(path, file, {
+      cacheControl: '31536000',
+      contentType: ext === 'glb' ? 'model/gltf-binary' : 'model/gltf+json',
+      upsert: false,
+    }),
+  )
+  if (error) throw error
+  return publicStorageUrl('models', path)
+}
+
 /** Upload the signed-in user's avatar into avatars/<uid>/... */
 export async function uploadAvatar(file: File, userId: string): Promise<string> {
   const blob = await resizeImage(file, 320, 0.9)

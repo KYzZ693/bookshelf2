@@ -32,7 +32,8 @@ If the env vars are missing, the app shows a "Connect your Supabase project" scr
 | `npm run dev` | Dev server |
 | `npm run build` | Typecheck + production build into `dist/` (also writes `dist/404.html` for SPA routing) |
 | `npm run typecheck` | TypeScript only |
-| `npm run test:db` | Runs all migrations + seed on PGlite (real PostgreSQL in WASM) and checks RLS, search, collections, admin functions, the importer and constraints (155 checks) |
+| `npm run test:db` | Runs all migrations + seed on PGlite (real PostgreSQL in WASM) and checks RLS, search, collections, admin functions, the importer and constraints (175 checks) |
+| `npm run reconstruct:merch` | Builds simulated 3D previews for merchandise (see [3D merchandise previews](#3d-merchandise-previews)) |
 | `npm run import:phoenixnext` | Imports the Phoenix Next catalog (see [Importing from Phoenix Next](#importing-from-phoenix-next)) |
 
 ### Environment variables
@@ -60,6 +61,7 @@ All structure lives in `supabase/migrations/`. Apply the files in filename order
 | `…0400_views_and_functions.sql` | `series_overview`, `my_collection`, `search_catalog()`, `get_genre_shelves()`, `set_collection_status()`, `toggle_collection_status()`, `get_collection_stats()`, `admin_save_series()`, `admin_save_book()`, `admin_ensure_person()` |
 | `…0500_storage.sql` | `covers` and `avatars` buckets with their policies |
 | `…0600_reference_data.sql` | Initial publishers (Phoenix Next, Luckpim, Animag, …) and genres |
+| `20261125000100_merch_types.sql`, `…000200_special_editions_and_merch_preview.sql` | New merchandise types; `regular_book_id` / `bonus_items` on books; 3D preview fields on merchandise; `models` bucket; merchandise-only series kept off the shelves |
 | `…0700_import_and_series_covers.sql` | `source_ref` import keys, automatic series covers (first regular volume), `import_catalog()` (service_role only) |
 | `supabase/seed.sql` | *Optional* demo catalog: 8 **fictional** series with volumes, special editions and merchandise |
 
@@ -133,6 +135,36 @@ Re-running is safe. Rows are matched by SKU, so nothing is duplicated. New volum
 > Covers are linked from Phoenix Next's image server, not copied. Titles, prices and ISBNs are facts. Cover art and synopses
 > belong to the publisher, so keep the site personal or ask Phoenix Next for permission before publishing it widely. Run the import
 > occasionally (e.g. weekly), not continuously.
+
+### Merchandise, artbooks and special editions
+
+- **Merchandise** has its own gallery at `/merchandise` (main navigation). Products are shown as framed photos, and you can filter them by type (Figure, Acrylic Stand, Keychain, Poster, Wall Scroll, Art Print, Character Goods, Collectible, …) and by series. Series pages link to their merchandise instead of listing it.
+- **Artbooks** stay publications (`books.item_type = 'artbook'`). They are shown in a gallery frame. Clicking one opens its normal detail page (Information and Description tabs), without the opening-book animation that regular volumes use.
+- **Special editions** are linked to their regular volume through `books.regular_book_id`. A trigger sets the link automatically by series and volume number. The series page lists regular volumes only. Each volume page has a prominent "Also available as a special edition" panel, and each special edition page links back to its volume and lists the bonus items (`books.bonus_items`).
+
+### 3D merchandise previews
+
+Opening a merchandise item shows an interactive 3D viewer when a preview exists. You can rotate, zoom, reset the view and go full screen. three.js is loaded only on that page. When there is no preview, the page shows the photo gallery (with zoom) and explains why.
+
+Previews come from one of two sources:
+
+1. **A model file:** an official or properly licensed GLB / glTF. Upload it in **Admin → Merchandise → 3D preview** (stored in the `models` bucket).
+2. **A simulated reconstruction** made by `npm run reconstruct:merch`. The script reads each product photo, decides whether the item can be rebuilt from it, and saves the parameters on the row (`model_params`, `reconstruction_status`, `reconstruction_notes`, `reference_urls`). The browser then builds the model:
+   - **acrylic stands and keychains:** the artwork is cut out of the photo and placed on a clear acrylic plate with the traced outline, plus a base or a metal ring;
+   - **can badges:** a domed print with a metal back and pin;
+   - **posters, postcards, shikishi, bromides, clear files and cards:** a printed sheet or board;
+   - **wall scrolls:** fabric with rods.
+
+   These are approximations. Thickness, size and hardware are typical values, not measurements, and the page labels them as simulated.
+
+Figures, plush, apparel, bags and items whose only photo is a promotional image are **not** rebuilt. They show the photo gallery until a GLB is uploaded.
+
+```bash
+npm run reconstruct:merch -- --dry-run   # analyse only; writes scripts/.cache/merch-reconstruction-review.json
+npm run reconstruct:merch                # save results (needs SUPABASE_SECRET_KEY in .env.local)
+```
+
+The script processes only items without a result. Use `--force` to redo everything, or `--only=<id>` for a single item. It never replaces an uploaded model file.
 
 ## 3. Authentication
 

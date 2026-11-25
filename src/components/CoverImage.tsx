@@ -18,6 +18,7 @@ export const CoverImage = memo(function CoverImage({
   sizes = '(min-width: 1024px) 160px, (min-width: 640px) 148px, 122px',
   aspect = 'aspect-[2/3]',
   fit = 'cover',
+  plain = false,
 }: {
   src: string | null | undefined
   title: string
@@ -33,6 +34,8 @@ export const CoverImage = memo(function CoverImage({
    * of itself — for special sets and merchandise photos that are not book-shaped.
    */
   fit?: 'cover' | 'contain'
+  /** No card background, shadow or blurred backdrop: for photos shown inside a frame. */
+  plain?: boolean
 }) {
   const [failed, setFailed] = useState(false)
   const [loaded, setLoaded] = useState(false)
@@ -40,8 +43,8 @@ export const CoverImage = memo(function CoverImage({
   const contain = fit === 'contain'
 
   return (
-    <div className={cn('@container relative overflow-hidden bg-surface-2 shadow-card', aspect, rounded, className)}>
-      {showImage && contain && (
+    <div className={cn('@container relative overflow-hidden', !plain && 'bg-surface-2 shadow-card', aspect, rounded, className)}>
+      {showImage && contain && !plain && (
         <img
           src={src!}
           alt=""

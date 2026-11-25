@@ -36,6 +36,6 @@ export function appUrl(path = ''): string {
 }
 
 /** Public URL for an object in a public storage bucket. */
-export function publicStorageUrl(bucket: 'covers' | 'avatars', path: string): string {
+export function publicStorageUrl(bucket: 'covers' | 'avatars' | 'models', path: string): string {
   return supabase.storage.from(bucket).getPublicUrl(path).data.publicUrl
 }

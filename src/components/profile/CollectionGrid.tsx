@@ -168,29 +168,32 @@ function CollectionItemCard({ entry: e }: { entry: CollectionEntry }) {
   const href = e.item_kind === 'book' ? `/book/${e.item_id}` : `/merch/${e.item_id}`
   const vol = formatVolume(e.volume_number)
   const price = formatPrice(e.price, e.currency ?? 'THB')
+  // Merchandise, special editions and artbooks show their whole photo.
+  const isArtbook = e.item_kind === 'book' && e.category === 'artbook'
+  const whole = e.item_kind === 'merchandise' || e.category === 'special_edition' || isArtbook
 
   return (
     <div className="group">
-      <Link to={href} className="block">
+      <MaybeLink to={href} className="block">
         <div className="relative transition-transform duration-300 group-hover:-translate-y-1">
           <CoverImage
             src={e.image_url}
             title={e.title}
             subtitle={vol ? `Vol. ${vol}` : null}
             category={e.category}
-            aspect={e.item_kind === 'merchandise' || e.category === 'special_edition' ? 'aspect-square' : 'aspect-[2/3]'}
-            fit={e.item_kind === 'merchandise' || e.category === 'special_edition' ? 'contain' : 'cover'}
+            aspect={whole ? 'aspect-square' : 'aspect-[2/3]'}
+            fit={whole ? 'contain' : 'cover'}
             className="group-hover:shadow-lift"
           />
           {vol && (
             <span className="absolute top-2 left-2 rounded-md bg-black/55 px-1.5 py-0.5 text-[10px] font-bold text-white">{vol}</span>
           )}
         </div>
-      </Link>
+      </MaybeLink>
       <div className="mt-2.5 space-y-1">
-        <Link to={href} className="line-clamp-2 text-[13px] leading-snug font-semibold text-ink hover:text-accent">
+        <MaybeLink to={href} className="line-clamp-2 text-[13px] leading-snug font-semibold text-ink hover:text-accent">
           {e.title}
-        </Link>
+        </MaybeLink>
         <Link to={`/series/${e.series_id}`} className="block truncate text-[11.5px] text-muted hover:text-accent">
           {e.series_title}
         </Link>
@@ -248,5 +251,15 @@ function CollectionItemCard({ entry: e }: { entry: CollectionEntry }) {
         }
       />
     </div>
+  )
+}
+
+function MaybeLink({ to, className, children }: { to: string | null; className?: string; children: React.ReactNode }) {
+  return to ? (
+    <Link to={to} className={className}>
+      {children}
+    </Link>
+  ) : (
+    <div className={className}>{children}</div>
   )
 }

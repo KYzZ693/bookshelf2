@@ -42,15 +42,37 @@ export const EDITION_LABEL: Record<EditionType, string> = {
 }
 
 export const MERCH_LABEL: Record<MerchType, string> = {
-  acrylic_stand: 'Acrylic Stand',
-  poster: 'Poster',
-  keychain: 'Keychain',
   figure: 'Figure',
+  acrylic_stand: 'Acrylic Stand',
+  keychain: 'Keychain',
+  poster: 'Poster',
+  tapestry: 'Wall Scroll',
+  art_print: 'Art Print',
   art_collection: 'Art Collection',
   postcard: 'Postcard',
   bookmark: 'Bookmark',
-  tapestry: 'Tapestry',
-  other: 'Merchandise',
+  character_goods: 'Character Goods',
+  collectible: 'Collectible',
+  other: 'Other Merchandise',
+}
+
+/** Display order for merchandise filters. */
+export const MERCH_ORDER = Object.keys(MERCH_LABEL) as MerchType[]
+
+/** Frame shape per merchandise type (product photos are shown whole inside it). */
+export const MERCH_ASPECT: Record<MerchType, string> = {
+  figure: 'aspect-[4/5]',
+  acrylic_stand: 'aspect-[4/5]',
+  keychain: 'aspect-square',
+  poster: 'aspect-[3/4]',
+  tapestry: 'aspect-[3/4]',
+  art_print: 'aspect-[4/5]',
+  art_collection: 'aspect-[4/5]',
+  postcard: 'aspect-[4/3]',
+  bookmark: 'aspect-[3/4]',
+  character_goods: 'aspect-square',
+  collectible: 'aspect-square',
+  other: 'aspect-square',
 }
 
 export const STATUS_LABEL: Record<CompletionStatus, string> = {

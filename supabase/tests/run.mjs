@@ -331,13 +331,19 @@ async function main() {
   r = await err(`delete from auth.users where id = $1`, [C]); check('deleting auth user cascades', r.ok && Number((await one(`select count(*) from public.profiles where id = $1`, [C])).count) === 0, r.message);
 
   r = await err(`select genre_slug, genre_total, series->0->>'title' t from public.get_genre_shelves(24, 'author') where genre_id is null`);
-  check('shelves include Uncategorized row for genre-less series', r.ok && r.rows.length === 1 && Number(r.rows[0].genre_total) >= 1, r.rows ?? r.message);
+  check('series without books stay off the shelves (no Uncategorized row yet)', r.ok && r.rows.length === 0, r.rows ?? r.message);
+  {
+    const gs = await one(`insert into public.series (title) values ('Genre-less With Book') returning id`);
+    await q(`insert into public.books (series_id, title, volume_number) values ($1, 'GL vol 1', 1)`, [gs.id]);
+    r = await err(`select genre_total, series->0->>'title' t from public.get_genre_shelves(24, 'author') where genre_id is null`);
+    check('genre-less series with a book shows in Uncategorized', r.ok && r.rows.length === 1 && Number(r.rows[0].genre_total) === 1 && r.rows[0].t === 'Genre-less With Book', r.rows ?? r.message);
+  }
   r = await err(`select count(*)::int n from public.get_genre_shelves() where genre_slug = 'historical'`);
   check('genres with no series produce no shelf row (by design: inner join)', r.ok && r.rows[0].n === 0, r.rows ?? r.message);
 
   // -------------------------------------------------------------------------
   console.log('== 8. storage policies (emulated storage.objects)');
-  r = await err(`select id, public from storage.buckets order by id`); check('buckets created', r.ok && r.rows.length === 2, r.rows ?? r.message);
+  r = await err(`select id, public from storage.buckets order by id`); check('buckets created (covers, avatars, models)', r.ok && r.rows.length === 3, r.rows ?? r.message);
   await asRole('authenticated', B);
   r = await err(`insert into storage.objects (bucket_id, name) values ('avatars', $1)`, [`${B}/me.png`]); check('user uploads own avatar folder', r.ok, r.message);
   r = await err(`insert into storage.objects (bucket_id, name) values ('avatars', $1)`, [`${A}/me.png`]); check('user cannot upload to other folder', !r.ok, r.message);
@@ -440,6 +446,54 @@ async function main() {
     check('imported series get covers (vol. 1 where it exists)', r.ok && r.rows[0].with_cover > 0, r.rows ?? r.message);
     r = await err(`select count(*)::int n from public.get_genre_shelves(24, 'author')`); check('shelves build over the imported catalog', r.ok && r.rows[0].n > 5, r.rows ?? r.message);
     r = await err(`select kind, title from public.search_catalog('wind breaker') limit 3`); check('search finds imported series', r.ok && r.rows.length > 0, r.rows ?? r.message);
+  }
+
+  // -------------------------------------------------------------------------
+  console.log('== 10. special editions linked to volumes, merchandise preview');
+  await reset();
+  {
+    const sid = (await one(`insert into public.series (title) values ('Link Test') returning id`)).id;
+    const sp1 = (await one(`insert into public.books (series_id, title, volume_number, edition_type, bonus_items)
+                             values ($1, 'LT Special Set 1', 1, 'special', array['  Acrylic stand ', '', 'Postcard']) returning id, regular_book_id, bonus_items`, [sid]));
+    check('special without a regular volume waits (null link), bonus items cleaned', sp1.regular_book_id === null && sp1.bonus_items.join('|') === 'Acrylic stand|Postcard', sp1);
+    const v1 = (await one(`insert into public.books (series_id, title, volume_number) values ($1, 'LT 1', 1) returning id`, [sid])).id;
+    check('regular volume adopts its waiting special edition', (await one(`select regular_book_id from public.books where id = $1`, [sp1.id])).regular_book_id === v1);
+    const sp2 = await one(`insert into public.books (series_id, title, volume_number, edition_type) values ($1, 'LT Box 1', 1, 'boxset') returning regular_book_id`, [sid]);
+    check('new special edition links to existing volume', sp2.regular_book_id === v1);
+    r = await err(`update public.books set regular_book_id = id where id = $1`, [v1]);
+    check('regular volume cannot have a parent', r.ok && (await one(`select regular_book_id from public.books where id = $1`, [v1])).regular_book_id === null, r.message);
+    const other = (await one(`insert into public.series (title) values ('Other') returning id`)).id;
+    const ov = (await one(`insert into public.books (series_id, title, volume_number) values ($1, 'O 1', 1) returning id`, [other])).id;
+    r = await err(`update public.books set regular_book_id = $1 where id = $2`, [ov, sp1.id]); check('cannot link to another series volume', !r.ok, r.message);
+    await q(`delete from public.books where id = $1`, [v1]);
+    check('deleting the volume keeps the special edition (link cleared)', (await one(`select regular_book_id from public.books where id = $1`, [sp1.id])).regular_book_id === null);
+    await asRole('anon', null);
+    r = await err(`select count(*)::int n from public.books where regular_book_id is not null or cardinality(bonus_items) > 0`); check('anon can read the new columns', r.ok, r.message);
+    r = await err(`select public.import_book_extras('[]'::jsonb)`); check('anon cannot call import_book_extras', !r.ok, r.message);
+    await reset();
+    await q(`update public.books set source_ref = 'test:sp1' where id = $1`, [sp1.id]);
+    await asRole('service_role', null);
+    r = await err(`select public.import_book_extras('[{"ref":"test:sp1","bonus_items":["Booklet","Shikishi"]}]'::jsonb) n`);
+    check('service_role sets bonus items by ref', r.ok && r.rows[0].n === 1, r.rows ?? r.message);
+    await reset();
+    check('bonus items stored', (await one(`select bonus_items from public.books where id = $1`, [sp1.id])).bonus_items.join('|') === 'Booklet|Shikishi');
+
+    // merchandise preview metadata
+    const ms = (await one(`insert into public.merchandise (series_id, title, merch_type, product_url) values ($1, 'LT Can Badge', 'character_goods', 'https://shop.example/badge') returning id, reconstruction_status, preview_available, reference_urls`, [sid]));
+    check('merch preview defaults (not started, no preview)', ms.reconstruction_status === 'not_started' && ms.preview_available === false, ms);
+    r = await err(`update public.merchandise set preview_available = true where id = $1`, [ms.id]); check('preview_available needs a model or params', !r.ok, r.message);
+    r = await err(`update public.merchandise set preview_available = true, model_format = 'procedural', model_params = '{"method":"badge"}', reconstruction_status = 'completed', reference_urls = array['https://a.example/x.jpg', 'not a url', ''] where id = $1 returning reference_urls`, [ms.id]);
+    check('procedural preview saved, bad reference urls dropped', r.ok && r.rows[0].reference_urls.length === 1, r.rows ?? r.message);
+    r = await err(`update public.merchandise set reconstruction_status = 'done' where id = $1`, [ms.id]); check('invalid reconstruction status rejected', !r.ok, r.message);
+    r = await err(`update public.merchandise set model_url = 'ftp://x' where id = $1`, [ms.id]); check('non-http model url rejected', !r.ok, r.message);
+    await asRole('authenticated', B);
+    r = await err(`update public.merchandise set reconstruction_notes = 'hack' where id = $1`, [ms.id]); check('non-admin cannot edit preview metadata', r.ok && r.affected === 0, r.ok ? { affected: r.affected } : r.message);
+    r = await err(`insert into storage.objects (bucket_id, name) values ('models', 'x.glb')`); check('non-admin cannot upload models', !r.ok, r.message);
+    await asRole('authenticated', A);
+    r = await err(`insert into storage.objects (bucket_id, name) values ('models', 'x.glb')`); check('admin uploads models', r.ok, r.message);
+    await reset();
+    r = await err(`insert into public.merchandise (series_id, title) values ($1, 'Nendoroid Test Figure'), ($1, 'Test Shikishi Set'), ($1, 'Random Can Badge') returning merch_type`, [sid]);
+    check('enum has the new merchandise types', (await err(`select 'art_print'::public.merch_type, 'character_goods'::public.merch_type, 'collectible'::public.merch_type`)).ok);
   }
 
   console.log(`\n== ${pass} passed, ${fail} failed`);
