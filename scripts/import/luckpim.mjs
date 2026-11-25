@@ -75,7 +75,9 @@ export function parsePage(html) {
   const g = (re) => html.match(re)?.[1]
   const info = {}
   for (const m of html.matchAll(/<div class=title>([^<]+)<\/div>\s*<div class="?detail[^>]*>([\s\S]*?)<\/div>/g)) info[strip(m[1])] = strip(m[2])
-  const subs = [...(html.match(/section-sub-category[\s\S]*?<\/div>\s*<\/div>/)?.[0] ?? '').matchAll(/class="button trans item"[^>]*>([\s\S]*?)<\/a>/g)].map((m) => strip(m[1]))
+  // Genre tags ("หมวดหมู่ย่อย"): the HTML block, not the same class name inside the page's CSS.
+  const subBlock = html.match(/<div class=section-sub-category>([\s\S]*?)<\/section>/)?.[1] ?? ''
+  const subs = [...subBlock.matchAll(/class="button trans item"[^>]*>([\s\S]*?)<\/a>/g)].map((m) => strip(m[1])).filter(Boolean)
   const intro = strip(g(/<div class=intro>([\s\S]*?)<\/div>/) ?? '')
   const img = g(/property=og:image content=([^ >]+)/) ?? g(/og:image" content="([^"]+)/) ?? g(/og:image content=([^ >]+)/)
   return {
@@ -94,7 +96,35 @@ export function parsePage(html) {
 // ---------------------------------------------------------------------------
 // Product -> catalog item
 // ---------------------------------------------------------------------------
-const GENRE_MAP = { romantic: 'Romance', 'slice of life': 'Slice of Life', 'sci-fi': 'Science Fiction', yaoi: "Boys' Love", 'boy love': "Boys' Love", 'girl love': 'Yuri' }
+// Luckpim's sub-categories -> the site's genre names (one tag can mean two genres).
+const GENRE_MAP = {
+  romantic: ['Romance'],
+  'love story': ['Romance'],
+  'love comedy': ['Romance', 'Comedy'],
+  'romantic comedy': ['Romance', 'Comedy'],
+  'rom-com': ['Romance', 'Comedy'],
+  'slice of life': ['Slice of Life'],
+  'sci-fi': ['Science Fiction'],
+  'science fiction': ['Science Fiction'],
+  yaoi: ["Boys' Love"],
+  'boy love': ["Boys' Love"],
+  "boy's love": ["Boys' Love"],
+  "boys' love": ["Boys' Love"],
+  bl: ["Boys' Love"],
+  'girl love': ['Yuri'],
+  "girl's love": ['Yuri'],
+  "girls' love": ['Yuri'],
+  gl: ['Yuri'],
+  'horror & thriller': ['Horror', 'Thriller'],
+}
+const GENRE_FIX = { advanture: 'Adventure' }
+/** "Crime [นิยาย]" -> Crime, "Crime & Mystery" -> Crime + Mystery, "BL / Yaoi" -> Boys' Love */
+function mapGenre(raw) {
+  const g = raw.replace(/\s*[[(（][^\])）]*[\])）]\s*/g, ' ').trim()
+  const one = (x) => GENRE_MAP[x.toLowerCase()] ?? [GENRE_FIX[x.toLowerCase()] ?? x]
+  if (GENRE_MAP[g.toLowerCase()]) return GENRE_MAP[g.toLowerCase()]
+  return [...new Set(g.split(/\s+[&/]\s+/).map((x) => x.trim()).filter(Boolean).flatMap(one))]
+}
 
 function formatOf(category, title) {
   const c = category.toLowerCase()
@@ -201,7 +231,7 @@ export function toItem(id, p) {
   return {
     format,
     base: squash(base.replace(/[\s\-–:~]+$/, '')),
-    genres: p.genres.map((g) => GENRE_MAP[g.toLowerCase()] ?? g).filter((g) => g && g.length <= 60),
+    genres: [...new Set((p.genres ?? []).flatMap(mapGenre))].filter((g) => g && g.length <= 60),
     book: {
       ref: `luckpim:${id}`,
       title: squash(p.title).slice(0, 300),
